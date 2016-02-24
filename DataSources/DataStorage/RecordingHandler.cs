@@ -18,7 +18,8 @@ namespace LabNation.DeviceInterface.DataSources
     {
         MATLAB,
         CSV,
-        CSV_ZIP
+        CSV_ZIP,
+        REF
     }
 
     public static class EnumExtensions
@@ -28,6 +29,7 @@ namespace LabNation.DeviceInterface.DataSources
             {
                 case StorageFileFormat.MATLAB: return ".mat";
                 case StorageFileFormat.CSV: return ".csv";
+                case StorageFileFormat.REF: return "REF";
             }
             throw new Exception("Unknown file format");
         }
