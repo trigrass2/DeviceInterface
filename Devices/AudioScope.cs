@@ -5,7 +5,7 @@ using System.Text;
 using LabNation.DeviceInterface.DataSources;
 using LabNation.Common;
 using LabNation.DeviceInterface.Memories;
-using NAudio.Wave;
+using Android.Media;
 
 namespace LabNation.DeviceInterface.Devices {
 
@@ -13,7 +13,7 @@ namespace LabNation.DeviceInterface.Devices {
 #if DEBUG
         public List<DeviceMemory> GetMemories() { return null; }
 #endif
-        private WaveIn audioJack = null;
+		private AudioRecord audioJack = null;
         private short[] latestAudioData = null;
         private short[] lastProcessedAudioData = null;
         private Random r = new Random();
@@ -62,6 +62,7 @@ namespace LabNation.DeviceInterface.Devices {
         private static uint ACQUISITION_DEPTH_MAX = 16 * 1024;
         private static int ACQUISITION_DEPTH_POWER_MAX = (int)Math.Ceiling(Math.Log(uint.MaxValue / OVERVIEW_LENGTH, 2));
         private uint _decimation = 0;
+		int bufferLengthInBytes;
         private uint decimation
         {
             get { return _decimation; }
@@ -174,13 +175,14 @@ namespace LabNation.DeviceInterface.Devices {
             AcquisitionDepth = 16 * 1024;
 		}
         
+		/*
         private void OnAudioJackDataAvailable(object sender, WaveInEventArgs e)
         {
             if (audioJack != null)
             {
                 latestAudioData = new short[e.BytesRecorded / 2];
                 Buffer.BlockCopy(e.Buffer, 0, latestAudioData, 0, e.BytesRecorded);
-
+				/*
                 short[] sampleData = new short[latestAudioData.Length / 2];
                 Buffer.BlockCopy(latestAudioData, 0, sampleData, 0, sampleData.Length * 2);
 
@@ -197,7 +199,7 @@ namespace LabNation.DeviceInterface.Devices {
                     int fds = 0;
                 }
             }
-        }
+        }*/
 
         public void CommitSettings() { }
 
@@ -230,6 +232,7 @@ namespace LabNation.DeviceInterface.Devices {
             }
         }
 
+		/*
         delegate void AudioJackStoppedDelegate(object sender, StoppedEventArgs e);
         void OnAudioRecordingStopped(object sender, StoppedEventArgs e)
         {
@@ -240,12 +243,12 @@ namespace LabNation.DeviceInterface.Devices {
                     audioJack.Invoke((AudioJackStoppedDelegate)delegate { OnAudioRecordingStopped(sender, e); });
                 }
                 else
-                {*/
+                {
                     audioJack.Dispose();
                     audioJack = null;
-                /*}*/
+                
             }
-        }
+        }*/
 
         public bool Running {
             set
@@ -255,13 +258,9 @@ namespace LabNation.DeviceInterface.Devices {
                     StopPending = false;
                     if (!this.acquisitionRunning)
                     {
-                        int millisecs = (int)((double)AcquisitionDepth * BASE_SAMPLE_PERIOD * 1000.0);
-                        audioJack = new WaveIn();
-                        audioJack.WaveFormat = new WaveFormat(44100, 1);
-                        audioJack.BufferMilliseconds = (int)((double)AcquisitionDepth * BASE_SAMPLE_PERIOD * 1000.0);
-                        audioJack.DataAvailable += new EventHandler<WaveInEventArgs>(OnAudioJackDataAvailable);
-                        audioJack.RecordingStopped += new EventHandler<StoppedEventArgs>(OnAudioRecordingStopped);
-                        audioJack.StartRecording();
+						bufferLengthInBytes = AudioRecord.GetMinBufferSize (44100, ChannelIn.Mono, Android.Media.Encoding.Pcm16bit);
+						audioJack = new AudioRecord (AudioSource.Mic, 44100, ChannelIn.Mono, Android.Media.Encoding.Pcm16bit, bufferLengthInBytes);
+						audioJack.StartRecording ();
                     }
                     this.acquisitionRunning = value;                    
                 }
@@ -271,7 +270,8 @@ namespace LabNation.DeviceInterface.Devices {
                     {
                         try
                         {
-                            audioJack.StopRecording();
+							audioJack.Stop();
+							audioJack.Release();
                         }
                         catch { }
                     }
@@ -454,18 +454,6 @@ namespace LabNation.DeviceInterface.Devices {
                 if (log2OfRatio > ACQUISITION_DEPTH_POWER_MAX)
                     log2OfRatio = ACQUISITION_DEPTH_POWER_MAX;
                 AcquisitionDepth = (uint)(OVERVIEW_LENGTH * Math.Pow(2, log2OfRatio));
-                try
-                {
-                    audioJack.StopRecording();
-                    System.Threading.Thread.Sleep(1000);
-                    audioJack.BufferMilliseconds = (int)((double)AcquisitionDepth * BASE_SAMPLE_PERIOD * 1000.0);
-                    audioJack.StartRecording();
-                    
-                }
-                catch (Exception e)
-                {
-                    int fsdf = 0;
-                }
 
                 ratio = samples / AcquisitionDepth;
                 log2OfRatio = (int)Math.Ceiling(Math.Log(ratio, 2));
@@ -565,17 +553,30 @@ namespace LabNation.DeviceInterface.Devices {
                             wave[i] = (float)Math.Sin(((float)i / (float)wave.Length)*2f*3.14f)*amp;// (float)latestAudioData[i] / (float)short.MaxValue;
                         System.Threading.Thread.Sleep(10);
                          */
-
+						/*
                         if (latestAudioData == null) 
                             return null;
                         int watchdog = 0;                        
                         while (latestAudioData == lastProcessedAudioData && watchdog++ < 1000)
                         {
                             System.Threading.Thread.Sleep(1);
-                        }
+                        }*/
 
-                        short[] sampleData = new short[latestAudioData.Length / 2];
-                        Buffer.BlockCopy(latestAudioData, 0, sampleData, 0, sampleData.Length*2);
+						if (!this.acquisitionRunning)
+							return null;
+
+						byte[] audioData = new byte[bufferLengthInBytes];
+						int bytesRead = audioJack.Read (audioData, 0, bufferLengthInBytes); //2 bytes per sample
+						int watchdog = 0;
+						while (bytesRead <= 0 && watchdog++ < 1000)
+						{
+							System.Threading.Thread.Sleep (1);
+							bytesRead = audioJack.Read (audioData, 0, bufferLengthInBytes); //2 bytes per sample
+						}
+
+
+						short[] sampleData = new short[audioData.Length / 2];
+						Buffer.BlockCopy(audioData, 0, sampleData, 0, sampleData.Length*2);
 
                         wave = new float[sampleData.Length];
                         for (int i = 0; i < wave.Length; i++)
