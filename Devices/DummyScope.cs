@@ -454,6 +454,7 @@ namespace LabNation.DeviceInterface.Devices {
 
                 bool triggerDetected = false;
 
+                //loop until trigger condition is met
                 while(true) {
                     AcquisitionMode AcquisitionModeCurrent;
                     lock (acquisitionSettingsLock)
@@ -511,11 +512,14 @@ namespace LabNation.DeviceInterface.Devices {
                     if (AcquisitionModeCurrent == AcquisitionMode.AUTO)
                         triggerTimeout = GENERATION_LENGTH_MAX * SamplePeriodCurrent; //Give up after 10ms
 
+                    ///detect whether this section contains a trigger
+                    //detect digital trigger
                     if (logicAnalyserEnabledCurrent && this.triggerValue.mode == TriggerMode.Digital)
                     {
                         triggerDetected = DummyScope.DoTriggerDigital(waveDigital.ToArray(), triggerHoldoffInSamples, digitalTrigger, acquisitionDepthCurrent, out triggerIndex);
                     }
                     else
+                    //detect analog trigger
                     {
                         if (triggerValue.source != TriggerSource.Channel)
                             throw new Exception("Doing analog trigger but mode is not set to analog!");
@@ -525,6 +529,7 @@ namespace LabNation.DeviceInterface.Devices {
                     }
                     awaitingTrigger = !triggerDetected;
 
+                    //break out of while loop if trigger was detected
                     if (triggerDetected)
                     {
                         forceTrigger = false;
@@ -532,6 +537,7 @@ namespace LabNation.DeviceInterface.Devices {
                         break;
                     }
 
+                    //break out of while loop if triggerWasForced or synthetical 10ms limit was reached
                     if (
                         forceTrigger ||
                         (triggerTimeout > 0 && waveAnalog[AnalogChannel.ChA].Count * SamplePeriodCurrent >= triggerTimeout)
@@ -543,10 +549,12 @@ namespace LabNation.DeviceInterface.Devices {
                         break;
                     }
 
+                    //keep track of time of first samplemoment
                     var timePassed = new TimeSpan((long)(waveLengthCurrent * SamplePeriodCurrent * 1e7));
                     timeOffset = timeOffset.Add(timePassed);
                 }
-                    
+
+                //crop wave to only displayable part and store in buffer    
                 foreach(AnalogChannel channel in AnalogChannel.List)
                 {
                     if (logicAnalyserEnabledCurrent && channel == logicAnalyserChannelCurrent)
