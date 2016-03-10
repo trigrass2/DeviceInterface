@@ -694,7 +694,11 @@ namespace LabNation.DeviceInterface.Devices {
                 //set dummy minmax values
                 p.SaturationLowValue[ch] = float.MinValue;
                 p.SaturationHighValue[ch] = float.MaxValue;
+
+				//set 1mV as resolution, which is needed for some processors (like freqdetection)
+				p.Resolution[ch] = 0.001f;
             }
+
 
             if (logicAnalyserEnabledCurrent)
             {
