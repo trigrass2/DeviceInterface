@@ -1,17 +1,19 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using LabNation.DeviceInterface.DataSources;
 using LabNation.Common;
 using LabNation.DeviceInterface.Memories;
-using Android.Media;
+#if ANDROID
+    using Android.Media;
+#endif
 
 namespace LabNation.DeviceInterface.Devices {
 	public enum WaveSource {
 		FILE,
 		GENERATOR,
-		AUDIO
+        AUDIO
 	}
 
     public class DummyScopeChannelConfig
@@ -47,9 +49,11 @@ namespace LabNation.DeviceInterface.Devices {
         Dictionary<AnalogChannel, float[]> acquisitionBufferAnalog;
         byte[] acquisitionBufferDigital = null;
 
+#if ANDROID
 		//audio jack parts
 		private int audioBufferLengthInBytes;
 		private AudioRecord audioJack = null;
+#endif
         
         //milliseconds of latency to simulate USB request delay
         private Dictionary<AnalogChannel, float> yOffset = new Dictionary<AnalogChannel, float>() {
@@ -209,7 +213,7 @@ namespace LabNation.DeviceInterface.Devices {
                 }
             }
         }
-
+#if ANDROID
 		private void InitAudioJack()
 		{
 			audioBufferLengthInBytes = AudioRecord.GetMinBufferSize (44100, ChannelIn.Mono, Android.Media.Encoding.Pcm16bit);
@@ -228,6 +232,10 @@ namespace LabNation.DeviceInterface.Devices {
 				//do nothing, this was anyhow just an attempt to release the audio jack in a clean way
 			}
 		}
+#else
+        private void InitAudioJack() { }
+        private void KillAudioJack() { }
+#endif
 
         public bool Running {
             set
@@ -244,10 +252,10 @@ namespace LabNation.DeviceInterface.Devices {
 						InitAudioJack ();
 					this.acquisitionRunning = value;
 				} else {
+#if ANDROID
 					if (this.acquisitionRunning && audioJack != null)
-					{
 						KillAudioJack ();
-					}
+#endif
 					StopPending = true;
 				}
             }
@@ -540,6 +548,7 @@ namespace LabNation.DeviceInterface.Devices {
                             case WaveSource.FILE:
                                 wave = GetWaveFromFile(channel, waveLengthCurrent, SamplePeriodCurrent, timeOffset.Ticks / 1e7);
                                 break;
+#if ANDROID
 						case WaveSource.AUDIO:
 							//fetch audio data
 							if (audioJack == null) return null;
@@ -566,6 +575,7 @@ namespace LabNation.DeviceInterface.Devices {
 							wave = wave.Where((x, i) => i % skip == 0).ToArray();
 
 							break;
+#endif
                         default:
                             throw new Exception("Unsupported wavesource");
                         }
