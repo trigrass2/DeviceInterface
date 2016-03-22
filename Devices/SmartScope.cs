@@ -131,7 +131,6 @@ namespace LabNation.DeviceInterface.Devices
             edge = TriggerEdge.RISING,
             mode = TriggerMode.Edge,
             level = 0.0f,
-            digital = new Dictionary<DigitalChannel,DigitalTriggerValue>() //initialised in constructor
         };
 
 #if DEBUG
@@ -150,8 +149,6 @@ namespace LabNation.DeviceInterface.Devices
 
         internal SmartScope(ISmartScopeUsbInterface usbInterface) : base()
         {
-            foreach (DigitalChannel dch in DigitalChannel.List)
-                triggerValue.digital.Add(dch, DigitalTriggerValue.X);
             this.hardwareInterface = usbInterface;
             this.SuspendViewportUpdates = false;
             DataOutOfRange = false;
@@ -373,12 +370,12 @@ namespace LabNation.DeviceInterface.Devices
                 if (p.FullAcquisitionFetchProgress < 1f)
                     continue;
 
-                if (p != null && (p.GetData(DataSourceType.Acquisition, AnalogChannel.ChA.Raw())) != null)
+                if (p != null && (p.GetData(ChannelDataSourceScope.Acquisition, AnalogChannel.ChA.Raw())) != null)
                 {
                     bool allGood = true;
                     foreach (AnalogChannelRaw ch in AnalogChannelRaw.List)
                     {
-                        ChannelData d = p.GetData(DataSourceType.Acquisition, ch);
+                        ChannelData d = p.GetData(ChannelDataSourceScope.Acquisition, ch);
                         bool verified = LabNation.Common.Utils.VerifyRamp((byte[])d.array);
                         allGood &= verified;
                     }
@@ -591,7 +588,7 @@ namespace LabNation.DeviceInterface.Devices
                 receivedData = SplitAndConvert(buffer, analogChannels, header);
                 foreach (Channel ch in receivedData.Keys)
                 {
-                    currentDataPackage.SetData(DataSourceType.Overview, ch, receivedData[ch]);
+                    currentDataPackage.SetData(ChannelDataSourceScope.Overview, ch, receivedData[ch]);
                     if (ch is AnalogChannel)
                     {
                         currentDataPackage.SaturationLowValue[ch] = minMaxVoltages[ch][0];
@@ -618,12 +615,12 @@ namespace LabNation.DeviceInterface.Devices
                     //Here we don't use AddData since we want to assign the whole acqbuf in memory
                     // at once instead of growing it as it comes in.
                     // Need to update datapackage timestamp though!
-                    ChannelData target = currentDataPackage.GetData(DataSourceType.Acquisition, ch);
+                    ChannelData target = currentDataPackage.GetData(ChannelDataSourceScope.Acquisition, ch);
                     Array targetArray;
                     if (target == null)
                     {
                         targetArray = Array.CreateInstance(receivedData[ch].GetType().GetElementType(), header.AcquisitionDepth);
-                        currentDataPackage.SetData(DataSourceType.Acquisition, ch, targetArray);
+                        currentDataPackage.SetData(ChannelDataSourceScope.Acquisition, ch, targetArray);
                         if (ch is AnalogChannel)
                         {
                             currentDataPackage.SaturationLowValue[ch] = minMaxVoltages[ch][0];
@@ -681,6 +678,11 @@ namespace LabNation.DeviceInterface.Devices
                     Logger.Warn("Got an off-set package but didn't get any date before");
                     return null;
                 }
+                /* FIXME: integrate into header*/
+                AnalogChannel triggerChannel = header.TriggerValue.channel;
+                byte[] triggerLevel = new byte[] { header.GetRegister(REG.TRIGGER_LEVEL) };
+                float[] triggerLevelFloat = triggerLevel.ConvertByteToVoltage(header.ChannelSettings(this.rom)[triggerChannel], header.GetRegister(triggerChannel.YOffsetRegister()), probeSettings[triggerChannel]);
+                header.TriggerValue.level = triggerLevelFloat[0];
                 currentDataPackage = new DataPackageScope(this.GetType(),
                     header.AcquisitionDepth, header.SamplePeriod,
                     header.ViewportLength, header.ViewportOffsetSamples,
@@ -694,11 +696,11 @@ namespace LabNation.DeviceInterface.Devices
 #endif
             currentDataPackage.Settings["InputDecimation"] = header.GetRegister(REG.INPUT_DECIMATION);
 
-            currentDataPackage.offset[DataSourceType.Viewport] = header.ViewportOffset;
-            currentDataPackage.samplePeriod[DataSourceType.Viewport] = header.ViewportSamplePeriod;
+            currentDataPackage.offset[ChannelDataSourceScope.Viewport] = header.ViewportOffset;
+            currentDataPackage.samplePeriod[ChannelDataSourceScope.Viewport] = header.ViewportSamplePeriod;
             foreach (Channel ch in receivedData.Keys)
             {
-                currentDataPackage.AddData(DataSourceType.Viewport, ch, receivedData[ch]);
+                currentDataPackage.AddData(ChannelDataSourceScope.Viewport, ch, receivedData[ch]);
                 if (ch is AnalogChannel)
                 {
                     currentDataPackage.SaturationLowValue[ch] = minMaxVoltages[ch][0];

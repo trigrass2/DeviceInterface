@@ -212,6 +212,9 @@ namespace LabNation.DeviceInterface.Devices {
                     this.acquisitionMode = value;
                 }
             }
+			get {
+				return this.acquisitionMode;
+			}
         }
 #if ANDROID
 		private void InitAudioJack()
@@ -297,7 +300,7 @@ namespace LabNation.DeviceInterface.Devices {
             get { return this.triggerValue.Copy(); }
             set { 
                 this.triggerValue = value;
-                TriggerDigital = this.triggerValue.digital;
+                TriggerDigital = this.triggerValue.Digital;
             }
         }
         public void SetVerticalRange(AnalogChannel ch, float minimum, float maximum)
@@ -690,16 +693,18 @@ namespace LabNation.DeviceInterface.Devices {
                     acquisitionDepthCurrent, SamplePeriodCurrent, 
                     viewportSamples, (Int64)(ViewPortOffset / SamplePeriodCurrent),
                     TriggerHoldoffCurrent, (Int64)(TriggerHoldoffCurrent/SamplePeriodCurrent), false, acquistionId, TriggerValue);
-            p.samplePeriod[DataSourceType.Viewport] = SamplePeriodCurrent * Math.Pow(2, viewportDecimation);
-            p.offset[DataSourceType.Viewport] = ViewPortOffset;
+            p.FullAcquisitionFetchProgress = 1f;
+            p.samplePeriod[ChannelDataSourceScope.Viewport] = SamplePeriodCurrent * Math.Pow(2, viewportDecimation);
+            p.offset[ChannelDataSourceScope.Viewport] = ViewPortOffset;
 
 			foreach (AnalogChannel ch in channelsToAcquireDataFor)
             {
                 if (logicAnalyserEnabledCurrent && ch == logicAnalyserChannelCurrent)
                     continue;
                 if(SendOverviewBuffer)
-                    p.SetData(DataSourceType.Overview, ch, GetViewport(acquisitionBufferAnalog[ch], 0, (int)(Math.Log(acquisitionDepthCurrent / OVERVIEW_LENGTH, 2)), OVERVIEW_LENGTH));
-                p.SetData(DataSourceType.Viewport, ch, GetViewport(acquisitionBufferAnalog[ch], viewportOffsetLocal, viewportDecimation, viewportSamples));
+                    p.SetData(ChannelDataSourceScope.Overview, ch, GetViewport(acquisitionBufferAnalog[ch], 0, (int)(Math.Log(acquisitionDepthCurrent / OVERVIEW_LENGTH, 2)), OVERVIEW_LENGTH));
+                p.SetData(ChannelDataSourceScope.Viewport, ch, GetViewport(acquisitionBufferAnalog[ch], viewportOffsetLocal, viewportDecimation, viewportSamples));
+                p.SetData(ChannelDataSourceScope.Acquisition, ch, acquisitionBufferAnalog[ch]);
 
                 //set dummy minmax values
                 p.SaturationLowValue[ch] = float.MinValue;
@@ -713,8 +718,9 @@ namespace LabNation.DeviceInterface.Devices {
             if (logicAnalyserEnabledCurrent)
             {
                 if (SendOverviewBuffer)
-                    p.SetData(DataSourceType.Overview, LogicAnalyserChannel.LA, GetViewport(acquisitionBufferDigital, 0, (int)(Math.Log(acquisitionDepthCurrent / OVERVIEW_LENGTH, 2)), OVERVIEW_LENGTH));
-                p.SetData(DataSourceType.Viewport, LogicAnalyserChannel.LA, GetViewport(acquisitionBufferDigital, viewportOffsetLocal, viewportDecimation, viewportSamples));
+                    p.SetData(ChannelDataSourceScope.Overview, LogicAnalyserChannel.LA, GetViewport(acquisitionBufferDigital, 0, (int)(Math.Log(acquisitionDepthCurrent / OVERVIEW_LENGTH, 2)), OVERVIEW_LENGTH));
+                p.SetData(ChannelDataSourceScope.Viewport, LogicAnalyserChannel.LA, GetViewport(acquisitionBufferDigital, viewportOffsetLocal, viewportDecimation, viewportSamples));
+                p.SetData(ChannelDataSourceScope.Acquisition, LogicAnalyserChannel.LA, acquisitionBufferDigital);
             }
 
             if (acquisitionMode == AcquisitionMode.SINGLE)
@@ -830,25 +836,33 @@ namespace LabNation.DeviceInterface.Devices {
                     if (wave[i] >= trigger.level + threshold)
                         postconditionCounterRising++;
                 }
-                else if (preconditionFallingMet)
+                else
+                    postconditionCounterRising = 0;
+
+                if (preconditionFallingMet)
                 {
                     if (wave[i] <= trigger.level - threshold)
                         postconditionCounterFalling++;
                 }
                 else
+                    postconditionCounterFalling = 0;
+
+                if (wave[i] < trigger.level && !preconditionRisingMet)
                 {
-                    if (wave[i] < trigger.level)
-                        preconditionCounterRising++;
-                    if (wave[i] > trigger.level)
-                        preconditionCounterFalling++;
+                    preconditionCounterRising++;
                 }
+                if (wave[i] > trigger.level && !preconditionFallingMet)
+                {
+                    preconditionCounterFalling++;
+                }
+
                 if (
                     (preconditionRisingMet && postconditionCounterRising == halfWidth && trigger.edge != TriggerEdge.FALLING) 
                 ||
                     (preconditionFallingMet && postconditionCounterFalling == halfWidth && trigger.edge != TriggerEdge.RISING) 
                 )
                 {
-                    int triggerIndexTmp = (int)(i + width / 2);
+                    int triggerIndexTmp = (int)(i - width / 2);
                     if (triggerIndexTmp - holdoff + outputWaveLength <= wave.Length)
                     {
                         triggerIndex = triggerIndexTmp;
