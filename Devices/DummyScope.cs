@@ -175,7 +175,7 @@ namespace LabNation.DeviceInterface.Devices {
                 { AnalogChannel.ChB, new DummyScopeChannelConfig() 
                     {
                         amplitude = 1,
-                        noise = 0.1,
+                        noise = 0.015,
                         coupling = Coupling.DC,
                         dcOffset = 0.0,
                         frequency = 10e3,
@@ -718,8 +718,13 @@ namespace LabNation.DeviceInterface.Devices {
                 p.SaturationLowValue[ch] = float.MinValue;
                 p.SaturationHighValue[ch] = float.MaxValue;
 
+<<<<<<< HEAD
 				//set 20mV as resolution, which is needed for some processors (like freqdetection). Don't go too low, as ETS uses this in its difference detector
 				p.Resolution[ch] = 0.020f;
+=======
+                //set 20mV as resolution, which is needed for some processors (like freqdetection). Don't go too low, as ETS uses this in its difference detector
+                p.Resolution[ch] = 0.020f;
+>>>>>>> origin/v0.8_fixes
             }
 
 
