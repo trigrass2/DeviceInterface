@@ -25,6 +25,18 @@ namespace LabNation.DeviceInterface.Devices {
         public ProbeDivision probeDivision;
     }
 
+    //FIXME: need to add full class
+    public class AudioScope
+    {
+        public static string FakeSerial { get { return "AudioScope"; } }
+    }
+
+    //FIXME: need to add full class
+    public class FromFileScope
+    {
+        public static string FakeSerial { get { return "FileScope"; } }
+    }
+
 	public partial class DummyScope : IDevice, IScope {
 #if DEBUG
         public List<DeviceMemory> GetMemories() { return null; }
